@@ -115,7 +115,7 @@ public class QuizServiceTests {
 	public void updateTest() {
 		Quiz quiz = new Quiz(13, "§»¿\¶Y‘£?", "§»¿\¶Y‘£?", LocalDate.of(2024, 6, 1), LocalDate.of(2024, 6, 1), "", false);
 		quizDao.save(quiz);
-
+		System.out.println("==============================");
 	}
 
 }
