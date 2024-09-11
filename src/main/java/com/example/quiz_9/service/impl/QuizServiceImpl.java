@@ -3,6 +3,7 @@ package com.example.quiz_9.service.impl;
 import java.time.LocalDate;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -95,29 +96,30 @@ public class QuizServiceImpl implements QuizService {
 	}
 	
 	private BasicRes checkParams(CreateOrUpdateReq req) {
+		//以下註解掉的檢查，有在類別 CreateOrUpdateReq 中使用 Validation 檢查了
 		//檢查問卷參數
 		// StringUtils.hasText(字串): 會檢查字串是否為 null、空字串、全空白字串，若是符合3種其中一項，會回 false
 		// 前面加個驚嘆號表示反向的意思，若字串的檢查結果是 false 的話，就會進到 if 的實作區塊
 		// !StringUtils.hasText(req.getName()) 等同於 StringUtils.hasText(req.getName()) == false
 		// 有驚嘆號 沒驚嘆號
-		if(!StringUtils.hasText(req.getName())) {
-			return new BasicRes(ResMessage.PARAM_QUIZ_NAME_ERROR.getCode(), 
-					ResMessage.PARAM_QUIZ_NAME_ERROR.getMessage());
-		}
-		if(!StringUtils.hasText(req.getDescription())) {
-			return new BasicRes(ResMessage.PARAM_DESCRIPTION_ERROR.getCode(), 
-					ResMessage.PARAM_DESCRIPTION_ERROR.getMessage());
-		}
+//		if(!StringUtils.hasText(req.getName())) {
+//			return new BasicRes(ResMessage.PARAM_QUIZ_NAME_ERROR.getCode(), 
+//					ResMessage.PARAM_QUIZ_NAME_ERROR.getMessage());
+//		}
+//		if(!StringUtils.hasText(req.getDescription())) {
+//			return new BasicRes(ResMessage.PARAM_DESCRIPTION_ERROR.getCode(), 
+//					ResMessage.PARAM_DESCRIPTION_ERROR.getMessage());
+//		}
 		
 		// 1. 開始時間不能小於等於當前時間
 		// LocalDate.now(): 取得系統當前時間
 		// req.getStartDate().isAfter(LocalDate.now()): 若 req 中的開始時間比當前時間晚，會得到 true
 		// !req.getStartDate().isAfter(LocalDate.now()): 前面有加驚嘆號，表示會得到相反的結果，就是開始時間
 		//                                               會等於小於當前時間
-		if(req.getStartDate() == null || !req.getStartDate().isAfter(LocalDate.now())) {
-			return new BasicRes(ResMessage.PARAM_START_DATE_ERROR.getCode(), 
-					ResMessage.PARAM_START_DATE_ERROR.getMessage());
-		}
+//		if(req.getStartDate() == null || !req.getStartDate().isAfter(LocalDate.now())) {
+//			return new BasicRes(ResMessage.PARAM_START_DATE_ERROR.getCode(), 
+//					ResMessage.PARAM_START_DATE_ERROR.getMessage());
+//		}
 		//程式碼有執行到這行時，表示開始時間一定大於等於當前時間
 		//所以後續檢查結束時間時，只要確定結束時間是大於等於開始時間即可，因為只要結束時間是大於等於開始時間，
 		//就一定會是大於等於當前時間
@@ -129,25 +131,26 @@ public class QuizServiceImpl implements QuizService {
 					ResMessage.PARAM_END_DATE_ERROR.getMessage());
 		}
 		//檢查問題參數
-		if(CollectionUtils.isEmpty(req.getQuestionList())) {
-			return new BasicRes(ResMessage.PARAM_QUESTION_LIST_NOT_FOUND.getCode(), 
-					ResMessage.PARAM_QUESTION_LIST_NOT_FOUND.getMessage());
-		}
+//		if(CollectionUtils.isEmpty(req.getQuestionList())) {
+//			return new BasicRes(ResMessage.PARAM_QUESTION_LIST_NOT_FOUND.getCode(), 
+//					ResMessage.PARAM_QUESTION_LIST_NOT_FOUND.getMessage());
+//		}
 		//一張問卷可能會有多個問題，所以要逐筆檢查每一題的參數
 		for(Question item : req.getQuestionList()) {
-			if(item.getId() <= 0) {
-				return new BasicRes(ResMessage.PARAM_QUESTION_ID_ERROR.getCode(), 
-						ResMessage.PARAM_QUESTION_ID_ERROR.getMessage());
-			}
-			if(!StringUtils.hasText(item.getTitle())) {
-				return new BasicRes(ResMessage.PARAM_TITLE_ERROR.getCode(), 
-						ResMessage.PARAM_TITLE_ERROR.getMessage());
-			}
-			
-			if(!StringUtils.hasText(item.getType())) {
-				return new BasicRes(ResMessage.PARAM_TYPE_ERROR.getCode(), 
-						ResMessage.PARAM_TYPE_ERROR.getMessage());
-			}
+			//以下註解掉的檢查，有在類別 Question 中使用 Validation 檢查了
+//			if(item.getId() <= 0) {
+//				return new BasicRes(ResMessage.PARAM_QUESTION_ID_ERROR.getCode(), 
+//						ResMessage.PARAM_QUESTION_ID_ERROR.getMessage());
+//			}
+//			if(!StringUtils.hasText(item.getTitle())) {
+//				return new BasicRes(ResMessage.PARAM_TITLE_ERROR.getCode(), 
+//						ResMessage.PARAM_TITLE_ERROR.getMessage());
+//			}
+//			
+//			if(!StringUtils.hasText(item.getType())) {
+//				return new BasicRes(ResMessage.PARAM_TYPE_ERROR.getCode(), 
+//						ResMessage.PARAM_TYPE_ERROR.getMessage());
+//			}
 			// 當 option_type 是單選或多選時，options 就不能是空字串
 			// 但 option_type 是文字時，options 允許是空字串
 			// 以下條件檢查: 當 option_type 是單選或多選時，且，options 是空字串，返回錯誤
@@ -170,6 +173,13 @@ public class QuizServiceImpl implements QuizService {
 		return null;
 	}
 
+	// key 若要串接多個參數時，不能直接用 "#req.name" + "#req.startDate.toString()"，必須要用 concat
+	// concat 也可以用來串接特殊符號，例如 - 或 _，但必須要用單引號將其包起來；
+	//       列如 #req.name.concat('-').concat(#req.startDate.toString())
+	// startDate 和 endDate 的資料型態非字串，所以要用 toString() 轉成字串後才能用 concat 串接
+	// cache 中的 concat 不支援 concat("#req.name", "-", "#req.startDate.toString()") 此寫法
+	@Cacheable(cacheNames = "quiz_search", key = "#req.name.concat(#req.startDate.toString())"
+			+ ".concat(#req.endDate.toString())")
 	@Override
 	public SearchRes search(SearchReq req) {
 		String name = req.getName();
@@ -193,6 +203,13 @@ public class QuizServiceImpl implements QuizService {
 		return new SearchRes(ResMessage.SUCCESS.getCode(), ResMessage.SUCCESS.getMessage(), 
 				quizDao.findByNameContainingAndStartDateGreaterThanEqualAndEndDateLessThanEqual(name, 
 				start, end));
+	}
+	
+	@Override
+	public SearchRes search(String name, LocalDate startDate, LocalDate endDate) {
+		return new SearchRes(ResMessage.SUCCESS.getCode(), ResMessage.SUCCESS.getMessage(), 
+				quizDao.findByNameContainingAndStartDateGreaterThanEqualAndEndDateLessThanEqual(name, 
+						startDate, endDate));
 	}
 
 	@Override
